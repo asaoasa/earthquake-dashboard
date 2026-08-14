@@ -141,7 +141,6 @@
       <label>
         直近期間: <span id="daysValue">60</span> 日間
         <div class="range-group">
-          <!-- ⭐ 最大60日（約2ヶ月）までスライダー設定可能 ⭐ -->
           <input type="range" id="daysSlider" min="1" max="60" value="60" oninput="syncFromSlider()">
         </div>
       </label>
@@ -173,7 +172,7 @@
     let myChart = null;
     let timerId = null;
     let isRefreshing = false;
-    const REFRESH_INTERVAL_MS = 60000; // 自動更新は1分間隔（API制限回避）
+    const REFRESH_INTERVAL_MS = 60000; // 自動更新は1分間隔
 
     window.addEventListener('DOMContentLoaded', () => {
       initPrefectures();
@@ -191,11 +190,10 @@
       });
     }
 
-    // 初期値：今日〜60日前（約2ヶ月）
     function initDates() {
       const end = new Date();
       const start = new Date();
-      start.setDate(end.getDate() - 59); // 当日含め60日間
+      start.setDate(end.getDate() - 59);
 
       document.getElementById('endDate').value = formatDateStr(end);
       document.getElementById('startDate').value = formatDateStr(start);
@@ -232,7 +230,6 @@
       }
     }
 
-    // 検索処理メイン（2ヶ月分遡るループ処理付き）
     async function executeSearch() {
       const pref = document.getElementById('prefSelect').value;
       const startStr = document.getElementById('startDate').value;
@@ -250,7 +247,7 @@
         let quakeData = [];
         let offset = 0;
         const limit = 100;
-        const maxRequests = 10; // ⭐ 最大1000件分（約2ヶ月分）まで遡って取得
+        const maxRequests = 10;
         const startTargetDate = new Date(startStr);
 
         for (let i = 0; i < maxRequests; i++) {
@@ -267,10 +264,7 @@
 
           quakeData = quakeData.concat(chunk);
 
-          // 取得した一番古いデータの日時をチェック
           const oldestInChunk = new Date(chunk[chunk.length - 1].time.replace(/\//g, '-'));
-          
-          // 選択した開始日より古いデータまで届いたらループ終了
           if (oldestInChunk < startTargetDate) {
             break;
           }
@@ -278,10 +272,7 @@
           offset += limit;
         }
 
-        // 集計（0件日の補填処理）
         const aggregated = processData(quakeData, pref, startStr, endStr);
-
-        // グラフを描画
         renderChart(aggregated);
 
         const nowStr = new Date().toLocaleTimeString('ja-JP');
@@ -293,11 +284,9 @@
       }
     }
 
-    // 集計＆0回補填処理
     function processData(rawData, filterPref, startStr, endStr) {
       const dailyMap = {};
 
-      // 指定期間内の全日付を0で初期化（0回も飛ばさず表示）
       let curr = new Date(startStr);
       const last = new Date(endStr);
       while (curr <= last) {
@@ -337,7 +326,6 @@
       return { dates, totalList, scale4List, totalSum };
     }
 
-    // Chart.js 描画関数
     function renderChart({ dates, totalList, scale4List }) {
       const ctx = document.getElementById('earthquakeChart').getContext('2d');
 
@@ -357,7 +345,7 @@
               borderColor: 'rgba(54, 162, 235, 1)',
               backgroundColor: 'rgba(54, 162, 235, 0.2)',
               borderWidth: 2,
-              pointRadius: dates.length > 30 ? 2 : 4, // 2ヶ月分表示時は点を少し小さくして見やすく
+              pointRadius: dates.length > 30 ? 2 : 4,
               fill: false,
               tension: 0.1,
               datalabels: {
@@ -367,7 +355,7 @@
                 font: { weight: 'bold', size: dates.length > 30 ? 9 : 11 }
               }
             },
-            // 棒グラフ：□4度以上回数
+            // 棒グラフ：□4度以上回数 (⭐ 修正部分 ⭐)
             {
               type: 'bar',
               label: '□4度以上回数',
@@ -377,11 +365,11 @@
               borderWidth: 1,
               barPercentage: 0.6,
               datalabels: {
-                align: 'center',
-                anchor: 'center',
-                color: '#ffffff',
-                font: { weight: 'bold', size: 9 },
-                formatter: (val) => val > 0 ? val : ''
+                align: 'top',       // 棒の上に配置
+                anchor: 'end',      // 棒の先端を基準にする
+                color: '#d9534f',   // 赤色テキスト
+                font: { weight: 'bold', size: dates.length > 30 ? 10 : 12 },
+                formatter: (val) => val > 0 ? val : '' // 1以上の場合のみ表示
               }
             }
           ]
@@ -405,6 +393,7 @@
             y: {
               title: { display: true, text: '回数' },
               beginAtZero: true,
+              grace: '10%', // 数字がグラフ枠の上にはみ出さないように少し余裕を持たせる
               ticks: { precision: 0 }
             }
           }
@@ -412,7 +401,6 @@
       });
     }
 
-    // 自動更新制御
     function toggleAutoRefresh() {
       const toggleBtn = document.getElementById('toggleBtn');
       const searchBtn = document.getElementById('searchBtn');
