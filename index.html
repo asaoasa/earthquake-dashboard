@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>地震発生状況 ダッシュボード</title>
+  <title>地震発生状況ダッシュボード (2ヶ月対応版)</title>
   
   <!-- Chart.js と データラベルプラグイン -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -22,7 +22,6 @@
 
     h1 { font-size: 1.4rem; text-align: center; margin: 10px 0; }
 
-    /* コントロールエリアのレイアウト */
     .controls-panel {
       background: white;
       padding: 12px;
@@ -62,7 +61,6 @@
       gap: 8px;
     }
 
-    /* ボタンのスタイル */
     .btn-search {
       background-color: #007bff;
       color: white;
@@ -103,7 +101,7 @@
       box-sizing: border-box;
     }
 
-    /* 横向き（ケータイ対応） */
+    /* ケータイ横向き対応 */
     @media screen and (max-height: 500px) and (orientation: landscape) {
       h1 { font-size: 1.1rem; margin: 2px 0; }
       .controls-panel { padding: 6px; gap: 5px; margin-bottom: 5px; }
@@ -119,7 +117,7 @@
   <h1>地震発生状況ダッシュボード</h1>
 
   <div class="controls-panel">
-    <!-- 上段: 地域選択 & ボタン群 -->
+    <!-- 上段: 地域選択 & ボタン -->
     <div class="control-row">
       <label>
         対象地域
@@ -130,7 +128,7 @@
       <button id="toggleBtn" class="btn-toggle" onclick="toggleAutoRefresh()">▶ 自動更新 開始</button>
     </div>
 
-    <!-- 下段: 期間指定（カレンダー & スライダー） -->
+    <!-- 下段: 期間指定（カレンダー & スライダー 1〜60日） -->
     <div class="control-row">
       <label>
         開始日
@@ -141,9 +139,10 @@
         <input type="date" id="endDate" onchange="syncFromCalendar()">
       </label>
       <label>
-        直近期間: <span id="daysValue">14</span> 日間
+        直近期間: <span id="daysValue">60</span> 日間
         <div class="range-group">
-          <input type="range" id="daysSlider" min="1" max="30" value="14" oninput="syncFromSlider()">
+          <!-- ⭐ 最大60日（約2ヶ月）までスライダー設定可能 ⭐ -->
+          <input type="range" id="daysSlider" min="1" max="60" value="60" oninput="syncFromSlider()">
         </div>
       </label>
     </div>
@@ -156,13 +155,12 @@
   </div>
 
   <script>
-    // データラベルプラグインの登録
     Chart.register(ChartDataLabels);
 
     // 人口順（熊本県・愛知県を先頭にした47都道府県リスト）
     const prefectures = [
       "全国（指定なし）",
-      "熊本県", "愛知県", // 1番目・2番目指定
+      "熊本県", "愛知県",
       "東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "兵庫県", "北海道",
       "福岡県", "静岡県", "茨城県", "広島県", "京都府", "宮城県", "新潟県",
       "長野県", "岐阜県", "群馬県", "栃木県", "岡山県", "福島県", "三重県",
@@ -175,16 +173,14 @@
     let myChart = null;
     let timerId = null;
     let isRefreshing = false;
-    const REFRESH_INTERVAL_MS = 15000; // 15秒（APIレート制限回避のため）
+    const REFRESH_INTERVAL_MS = 60000; // 自動更新は1分間隔（API制限回避）
 
-    // 初期化処理
     window.addEventListener('DOMContentLoaded', () => {
       initPrefectures();
       initDates();
       executeSearch();
     });
 
-    // 都道府県プルダウンの生成
     function initPrefectures() {
       const select = document.getElementById('prefSelect');
       prefectures.forEach(pref => {
@@ -195,18 +191,16 @@
       });
     }
 
-    // 初期日付（今日〜14日前）のセット
+    // 初期値：今日〜60日前（約2ヶ月）
     function initDates() {
       const end = new Date();
       const start = new Date();
-      start.setDate(end.getDate() - 13); // 当日含め14日間
+      start.setDate(end.getDate() - 59); // 当日含め60日間
 
-      document.getElementById('endDate').valueToDate = end;
       document.getElementById('endDate').value = formatDateStr(end);
       document.getElementById('startDate').value = formatDateStr(start);
     }
 
-    // 日付フォーマット YYYY-MM-DD
     function formatDateStr(date) {
       const y = date.getFullYear();
       const m = String(date.getMonth() + 1).padStart(2, '0');
@@ -214,7 +208,6 @@
       return `${y}-${m}-${d}`;
     }
 
-    // スライダー操作時にカレンダー側を更新
     function syncFromSlider() {
       const days = parseInt(document.getElementById('daysSlider').value, 10);
       document.getElementById('daysValue').innerText = days;
@@ -227,20 +220,19 @@
       document.getElementById('startDate').value = formatDateStr(start);
     }
 
-    // カレンダー変更時にスライダー数値を計算更新
     function syncFromCalendar() {
       const s = new Date(document.getElementById('startDate').value);
       const e = new Date(document.getElementById('endDate').value);
       if (!isNaN(s) && !isNaN(e)) {
         const diffDays = Math.round((e - s) / (1000 * 60 * 60 * 24)) + 1;
-        if (diffDays >= 1 && diffDays <= 30) {
+        if (diffDays >= 1 && diffDays <= 60) {
           document.getElementById('daysSlider').value = diffDays;
           document.getElementById('daysValue').innerText = diffDays;
         }
       }
     }
 
-    // 検索実行メイン関数
+    // 検索処理メイン（2ヶ月分遡るループ処理付き）
     async function executeSearch() {
       const pref = document.getElementById('prefSelect').value;
       const startStr = document.getElementById('startDate').value;
@@ -252,23 +244,44 @@
         return;
       }
 
-      statusBar.innerText = "データ取得・集計中...";
+      statusBar.innerText = "過去データを読み込んでいます (2ヶ月分データ取得中)...";
 
       try {
-        // 直近データを最大件数（1000件）取得
-        const response = await fetch(`https://api.p2pquake.net/v2/jma/quake?limit=100`);
-        if (response.status === 429) {
-          throw new Error("アクセス過多です。しばらく待ってから再試行してください。");
-        } else if (!response.ok) {
-          throw new Error(`通信エラー: ${response.status}`);
+        let quakeData = [];
+        let offset = 0;
+        const limit = 100;
+        const maxRequests = 10; // ⭐ 最大1000件分（約2ヶ月分）まで遡って取得
+        const startTargetDate = new Date(startStr);
+
+        for (let i = 0; i < maxRequests; i++) {
+          const response = await fetch(`https://api.p2pquake.net/v2/jma/quake?limit=${limit}&offset=${offset}`);
+          
+          if (response.status === 429) {
+            throw new Error("アクセス過多です。1分ほど置いてから再試行してください。");
+          } else if (!response.ok) {
+            throw new Error(`通信エラー: ${response.status}`);
+          }
+
+          const chunk = await response.json();
+          if (!chunk || chunk.length === 0) break;
+
+          quakeData = quakeData.concat(chunk);
+
+          // 取得した一番古いデータの日時をチェック
+          const oldestInChunk = new Date(chunk[chunk.length - 1].time.replace(/\//g, '-'));
+          
+          // 選択した開始日より古いデータまで届いたらループ終了
+          if (oldestInChunk < startTargetDate) {
+            break;
+          }
+
+          offset += limit;
         }
 
-        const quakeData = await response.json();
-
-        // データの集計（指定期間全日付の0補填処理を含む）
+        // 集計（0件日の補填処理）
         const aggregated = processData(quakeData, pref, startStr, endStr);
 
-        // グラフ描画
+        // グラフを描画
         renderChart(aggregated);
 
         const nowStr = new Date().toLocaleTimeString('ja-JP');
@@ -280,11 +293,11 @@
       }
     }
 
-    // データ処理＆指定期間の「0回補填」ロジック
+    // 集計＆0回補填処理
     function processData(rawData, filterPref, startStr, endStr) {
       const dailyMap = {};
 
-      // 1. 指定された日付範囲の全日付キーを「0」で初期化（0回を飛ばさない）
+      // 指定期間内の全日付を0で初期化（0回も飛ばさず表示）
       let curr = new Date(startStr);
       const last = new Date(endStr);
       while (curr <= last) {
@@ -295,11 +308,9 @@
 
       let totalSum = 0;
 
-      // 2. APIデータを取り込んで該当日のカウントを加算
       rawData.forEach(item => {
         const dateStr = item.time.split(' ')[0].replace(/\//g, '-');
 
-        // 範囲外の日付はスキップ
         if (dailyMap[dateStr] !== undefined) {
           let isTargetRegion = true;
           if (filterPref) {
@@ -312,7 +323,6 @@
             dailyMap[dateStr].total += 1;
             totalSum += 1;
 
-            // 震度4以上 (maxScale >= 40)
             if (item.earthquake && item.earthquake.maxScale >= 40) {
               dailyMap[dateStr].scale4plus += 1;
             }
@@ -327,7 +337,7 @@
       return { dates, totalList, scale4List, totalSum };
     }
 
-    // Chart.js 複合グラフ描画処理
+    // Chart.js 描画関数
     function renderChart({ dates, totalList, scale4List }) {
       const ctx = document.getElementById('earthquakeChart').getContext('2d');
 
@@ -339,7 +349,7 @@
         data: {
           labels: dates,
           datasets: [
-            // 1. 折れ線グラフ：地震回数
+            // 折れ線：地震回数
             {
               type: 'line',
               label: '・地震回数',
@@ -347,17 +357,17 @@
               borderColor: 'rgba(54, 162, 235, 1)',
               backgroundColor: 'rgba(54, 162, 235, 0.2)',
               borderWidth: 2,
-              pointRadius: 4,
+              pointRadius: dates.length > 30 ? 2 : 4, // 2ヶ月分表示時は点を少し小さくして見やすく
               fill: false,
               tension: 0.1,
               datalabels: {
                 align: 'top',
                 anchor: 'end',
                 color: '#0056b3',
-                font: { weight: 'bold', size: 11 }
+                font: { weight: 'bold', size: dates.length > 30 ? 9 : 11 }
               }
             },
-            // 2. 棒グラフ：□4度以上回数
+            // 棒グラフ：□4度以上回数
             {
               type: 'bar',
               label: '□4度以上回数',
@@ -365,13 +375,13 @@
               backgroundColor: 'rgba(255, 99, 132, 0.7)',
               borderColor: 'rgba(255, 99, 132, 1)',
               borderWidth: 1,
-              barPercentage: 0.5,
+              barPercentage: 0.6,
               datalabels: {
                 align: 'center',
                 anchor: 'center',
                 color: '#ffffff',
-                font: { weight: 'bold', size: 10 },
-                formatter: (val) => val > 0 ? val : '' // 棒グラフの0表示が重なるのを防ぐ調整（折れ線側の0で視認可能なため）
+                font: { weight: 'bold', size: 9 },
+                formatter: (val) => val > 0 ? val : ''
               }
             }
           ]
@@ -385,15 +395,12 @@
               position: 'top',
               labels: { font: { size: 12, weight: 'bold' } }
             },
-            // 頂点数値ラベル設定
-            datalabels: {
-              display: true
-            }
+            datalabels: { display: true }
           },
           scales: {
             x: {
               title: { display: true, text: '日付' },
-              ticks: { maxRotation: 45, minRotation: 0 }
+              ticks: { maxRotation: 60, minRotation: 0, font: { size: dates.length > 30 ? 10 : 12 } }
             },
             y: {
               title: { display: true, text: '回数' },
@@ -405,27 +412,25 @@
       });
     }
 
-    // 自動更新の切り替え制御
+    // 自動更新制御
     function toggleAutoRefresh() {
       const toggleBtn = document.getElementById('toggleBtn');
       const searchBtn = document.getElementById('searchBtn');
 
       if (isRefreshing) {
-        // --- 停止処理 ---
         clearInterval(timerId);
         timerId = null;
         isRefreshing = false;
 
         toggleBtn.innerText = "▶ 自動更新 開始";
         toggleBtn.classList.remove('active');
-        searchBtn.disabled = false; // 検索ボタンを有効化
+        searchBtn.disabled = false;
         document.getElementById('statusBar').innerText = "自動更新を停止しました。";
       } else {
-        // --- 開始処理 ---
         isRefreshing = true;
         toggleBtn.innerText = "⏹ 自動更新 停止";
         toggleBtn.classList.add('active');
-        searchBtn.disabled = true; // ⭐ 自動更新中は検索ボタンを押せないよう制御
+        searchBtn.disabled = true;
 
         executeSearch();
         timerId = setInterval(executeSearch, REFRESH_INTERVAL_MS);
