@@ -128,7 +128,7 @@
       <button id="toggleBtn" class="btn-toggle" onclick="toggleAutoRefresh()">▶ 自動更新 開始</button>
     </div>
 
-    <!-- 下段: 期間指定（日付入力は2015年〜選択可能） -->
+    <!-- 下段: 期間指定 -->
     <div class="control-row">
       <label>
         開始日
@@ -157,7 +157,6 @@
     Chart.register(ChartDataLabels);
 
     const prefectures = [
-      
       "熊本県", "愛知県", "長崎県", 
       "東京都", "神奈川県", "大阪府", "埼玉県", "千葉県", "兵庫県", "北海道",
       "福岡県", "静岡県", "茨城県", "広島県", "京都府", "宮城県", "新潟県",
@@ -165,13 +164,16 @@
       "愛媛県", "鹿児島県", "滋賀県", "青森県", "奈良県", "岩手県",
       "大分県", "石川県", "山形県", "宮崎県", "沖縄県", "富山県", "秋田県",
       "香川県", "和歌山県", "山口県", "佐賀県", "徳島県", "山梨県", "福井県",
-      "高知県", "島根県", "鳥取県", "全国（指定なし）",
+      "高知県", "島根県", "鳥取県", "全国（指定なし）"
     ];
 
     let myChart = null;
     let timerId = null;
     let isRefreshing = false;
     const REFRESH_INTERVAL_MS = 60000;
+
+    // APIレート制限回避のためのウェイティング関数
+    const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
     window.addEventListener('DOMContentLoaded', () => {
       initPrefectures();
@@ -229,7 +231,7 @@
       }
     }
 
-    // ⭐ 日付範囲を直接APIに送って検索するロジック ⭐
+    // 検索処理（修正版：offsetベースで取得）
     async function executeSearch() {
       const pref = document.getElementById('prefSelect').value;
       const startStr = document.getElementById('startDate').value;
@@ -241,25 +243,23 @@
         return;
       }
 
-      // APIフォーマット用の日時文字列 (YYYYMMDDhhmmss) を作成
-      const startParam = startStr.replace(/-/g, '') + '000000';
-      const endParam = endStr.replace(/-/g, '') + '235959';
-
       statusBar.innerText = `${startStr} ～ ${endStr} のデータを取得中...`;
 
       try {
         let quakeData = [];
         let offset = 0;
         const limit = 100;
-        const maxRequests = 10; // 指定期間内のデータを最大1000件分取得
+        const maxRequests = 10; // 最大10回（1000件）取得
+        const startTargetDate = new Date(startStr);
+        const endTargetDate = new Date(endStr);
+        endTargetDate.setHours(23, 59, 59, 999); // 終了日の23:59:59までカバー
 
         for (let i = 0; i < maxRequests; i++) {
-          // start_time と end_time を指定してその期間のデータをピンポイント取得
-          const url = `https://api.p2pquake.net/v2/jma/quake?limit=${limit}&offset=${offset}&start_time=${startParam}&end_time=${endParam}`;
+          const url = `https://api.p2pquake.net/v2/jma/quake?limit=${limit}&offset=${offset}`;
           const response = await fetch(url);
           
           if (response.status === 429) {
-            throw new Error("アクセス過多です。1分ほど置いてから再試行してください。");
+            throw new Error("アクセス過多（429）です。1分ほど置いてから再試行してください。");
           } else if (!response.ok) {
             throw new Error(`通信エラー: ${response.status}`);
           }
@@ -269,10 +269,19 @@
 
           quakeData = quakeData.concat(chunk);
 
-          // 取得件数がlimit未満ならそれ以上データがないのでループ終了
-          if (chunk.length < limit) break;
+          // 取得したデータ内の一番古い日時を確認
+          const lastTimeStr = chunk[chunk.length - 1].time.replace(/\//g, '-');
+          const oldestInChunk = new Date(lastTimeStr);
+          
+          // 選択した開始日より過去まで遡れたらループ終了
+          if (oldestInChunk < startTargetDate) {
+            break;
+          }
 
           offset += limit;
+
+          // 連続通信でAPI制限にかからないよう、ほんの少し待機（300ms）
+          await sleep(300);
         }
 
         const aggregated = processData(quakeData, pref, startStr, endStr);
